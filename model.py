@@ -12,7 +12,8 @@ class MultiStageModel(nn.Module):
     def __init__(self, num_stages, num_layers, num_f_maps, dim, num_classes):
         super(MultiStageModel, self).__init__()
         self.stage1 = SingleStageModel(num_layers, num_f_maps, dim, num_classes)
-        self.stages = nn.ModuleList([copy.deepcopy(SingleStageModel(num_layers, num_f_maps, num_classes, num_classes)) for s in range(num_stages-1)])
+        self.stages = nn.ModuleList([copy.deepcopy(SingleStageModel(num_layers, num_f_maps, num_classes, num_classes))
+                                     for s in range(num_stages-1)])
 
     def forward(self, x, mask):
         out = self.stage1(x, mask)
@@ -27,7 +28,8 @@ class SingleStageModel(nn.Module):
     def __init__(self, num_layers, num_f_maps, dim, num_classes):
         super(SingleStageModel, self).__init__()
         self.conv_1x1 = nn.Conv1d(dim, num_f_maps, 1)
-        self.layers = nn.ModuleList([copy.deepcopy(DilatedResidualLayer(2 ** i, num_f_maps, num_f_maps)) for i in range(num_layers)])
+        self.layers = nn.ModuleList([copy.deepcopy(DilatedResidualLayer(2 ** i, num_f_maps, num_f_maps))
+                                     for i in range(num_layers)])
         self.conv_out = nn.Conv1d(num_f_maps, num_classes, 1)
 
     def forward(self, x, mask):
@@ -101,7 +103,7 @@ class Trainer:
             list_of_vids = file_ptr.read().split('\n')[:-1]
             file_ptr.close()
             for vid in list_of_vids:
-                print vid
+                print(vid)
                 features = np.load(features_path + vid.split('.')[0] + '.npy')
                 features = features[:, ::sample_rate]
                 input_x = torch.tensor(features, dtype=torch.float)
