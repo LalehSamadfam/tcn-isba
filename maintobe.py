@@ -26,13 +26,13 @@ parser.add_argument('--split', default='2')
 
 args = parser.parse_args()
 
-num_stages = 2
+num_stages = 1 #TODO change it to 2
 num_layers = 10
 num_f_maps = 64
 features_dim = 2048
-bz = 8 # I changed it from 1 to 8.
+bz = 1
 lr = 0.0005
-num_epochs = 50
+num_epochs = 1 #TODO change it to 50
 
 # use the full temporal resolution @ 15fps
 sample_rate = 1
@@ -65,13 +65,13 @@ num_classes = len(actions_dict)
 
 
 # train
-trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes)
+
 no_change = 1
 if args.action == "train":
     batch_gen = BatchGenerator(num_classes, actions_dict, segmentation_path, features_path, sample_rate)
     batch_gen.read_data(vid_list_file)
     weights = batch_gen.set_class_weights()
-    trainer.ce(weight=weights)
+    trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes, weights)
     while(no_change):
         trainer.train(model_dir, batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, device=device)
         trainer.predict(model_dir, temp_results_dir, features_path, vid_list_file, num_epochs, actions_dict, device,

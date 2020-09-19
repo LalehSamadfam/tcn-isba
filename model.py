@@ -15,11 +15,11 @@ class MultiStageModel(nn.Module):
         self.stages = nn.ModuleList([copy.deepcopy(SingleStageModel(num_layers, num_f_maps, num_classes, num_classes))
                                      for s in range(num_stages-1)])
 
-    def forward(self, x, mask):
-        out = self.stage1(x, mask)
+    def forward(self, x):
+        out = self.stage1(x)
         outputs = out.unsqueeze(0)
         for s in self.stages:
-            out = s(F.softmax(out, dim=1) * mask[:, 0:1, :], mask)
+            out = s(F.softmax(out, dim=1))
             outputs = torch.cat((outputs, out.unsqueeze(0)), dim=0)
         return outputs
 
@@ -32,11 +32,11 @@ class SingleStageModel(nn.Module):
                                      for i in range(num_layers)])
         self.conv_out = nn.Conv1d(num_f_maps, num_classes, 1)
 
-    def forward(self, x, mask):
+    def forward(self, x):
         out = self.conv_1x1(x)
         for layer in self.layers:
-            out = layer(out, mask)
-        out = self.conv_out(out) * mask[:, 0:1, :]
+            out = layer(out)
+        out = self.conv_out(out)
         return out
 
 
@@ -47,18 +47,18 @@ class DilatedResidualLayer(nn.Module):
         self.conv_1x1 = nn.Conv1d(out_channels, out_channels, 1)
         self.dropout = nn.Dropout()
 
-    def forward(self, x, mask):
+    def forward(self, x):
         out = F.relu(self.conv_dilated(x))
         out = self.conv_1x1(out)
         out = self.dropout(out)
-        return (x + out) * mask[:, 0:1, :]
+        return (x + out)
 
 
 class Trainer:
-    def __init__(self, num_blocks, num_layers, num_f_maps, dim, num_classes):
+    def __init__(self, num_blocks, num_layers, num_f_maps, dim, num_classes, weights):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
-        self.ce = nn.CrossEntropyLoss(ignore_index=-100)
-        self.mse = nn.MSELoss(reduction='none')
+        #self.mse = nn.MSELoss(reduction='none')
+        self.bce = nn.BCEWithLogitsLoss(weight=weights)
         self.num_classes = num_classes
 
     def train(self, save_dir, batch_gen, num_epochs, batch_size, learning_rate, device):
@@ -68,31 +68,30 @@ class Trainer:
         for epoch in range(num_epochs):
             epoch_loss = 0
             correct = 0
-            total = 0
             while batch_gen.has_next():
-                batch_input, batch_target, mask = batch_gen.next_batch(batch_size)
-                batch_input, batch_target, mask = batch_input.to(device), batch_target.to(device), mask.to(device)
+                batch_input, batch_target = batch_gen.next_batch(batch_size)
+                batch_input, batch_target = batch_input.to(device), batch_target.to(device)
                 optimizer.zero_grad()
-                predictions = self.model(batch_input, mask)
+                predictions = self.model(batch_input)
 
                 loss = 0
                 for p in predictions:
-                    loss += self.ce(p.transpose(2, 1).contiguous().view(-1, self.num_classes), batch_target.view(-1))
-                    loss += 0.15*torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1), F.log_softmax(p.detach()[:, :, :-1], dim=1)), min=0, max=16)*mask[:, :, 1:])
+                    loss += self.bce(p.transpose(2, 1).contiguous().view(-1, self.num_classes), batch_target.view(-1))
+                    #loss += 0.15*torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1),
+                    #                        F.log_softmax(p.detach()[:, :, :-1], dim=1)), min=0, max=16))
 
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
 
                 _, predicted = torch.max(predictions[-1].data, 1)
-                correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
-                total += torch.sum(mask[:, 0, :]).item()
+                correct += ((predicted == batch_target).float()).sum().item()
 
             batch_gen.reset()
             torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
             torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
             print("[epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples),
-                                                               float(correct)/total))
+                                                               float(correct)))
 
     def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
         self.model.eval()
