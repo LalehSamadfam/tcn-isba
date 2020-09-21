@@ -54,6 +54,7 @@ if not os.path.exists(model_dir):
 if not os.path.exists(results_dir):
     os.makedirs(results_dir)
 
+
 file_ptr = open(mapping_file, 'r')
 actions = file_ptr.read().split('\n')[:-1]
 file_ptr.close()
@@ -66,17 +67,22 @@ num_classes = len(actions_dict)
 
 # train
 
-no_change = 1
+loss = float('inf')
+no_enhancement = 0
+
 if args.action == "train":
     batch_gen = BatchGenerator(num_classes, actions_dict, segmentation_path, features_path, sample_rate)
     batch_gen.read_data(vid_list_file)
-    weights = batch_gen.set_class_weights()
-    trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes, weights)
-    while(no_change):
+    trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes, batch_gen.weights)
+    while no_enhancement < 3:
         trainer.train(model_dir, batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, device=device)
-        trainer.predict(model_dir, temp_results_dir, features_path, vid_list_file, num_epochs, actions_dict, device,
-                    sample_rate)
-        utils.generate_target(segmentation_path, temp_results_dir, vid_list_file)
+        predictions = trainer.predict(model_dir, temp_results_dir, features_path, vid_list_file,
+                                      num_epochs, actions_dict, device, sample_rate)
+        new_loss = batch_gen.loss(predictions)
+        if new_loss > loss:
+            no_enhancement += 1
+        loss = new_loss
+        batch_gen.generate_target(segmentation_path, temp_results_dir, vid_list_file)
 
 if args.action == "predict":
     trainer.predict(model_dir, results_dir, features_path, vid_list_file_tst, num_epochs, actions_dict, device,

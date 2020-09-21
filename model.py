@@ -32,6 +32,7 @@ class SingleStageModel(nn.Module):
                                      for i in range(num_layers)])
         self.conv_out = nn.Conv1d(num_f_maps, num_classes, 1)
 
+
     def forward(self, x):
         out = self.conv_1x1(x)
         for layer in self.layers:
@@ -94,6 +95,7 @@ class Trainer:
                                                                float(correct)))
 
     def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
+        temp_res = []
         self.model.eval()
         with torch.no_grad():
             self.model.to(device)
@@ -113,9 +115,13 @@ class Trainer:
                 predicted = predicted.squeeze()
                 recognition = []
                 for i in range(len(predicted)):
-                    recognition = np.concatenate((recognition, [actions_dict.keys()[actions_dict.values().index(predicted[i].item())]]*sample_rate))
+                    recognition = np.concatenate((recognition,
+                                [actions_dict.keys()[actions_dict.values().index(predicted[i].item())]]*sample_rate))
+                temp_res.append(recognition)
                 f_name = vid.split('/')[-1].split('.')[0]
                 f_ptr = open(results_dir + "/" + f_name, "w")
                 f_ptr.write("### Frame level recognition: ###\n")
                 f_ptr.write(' '.join(recognition))
                 f_ptr.close()
+        return temp_res
+
