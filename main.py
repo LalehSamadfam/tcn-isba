@@ -19,19 +19,20 @@ torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 
 parser = argparse.ArgumentParser()
+#parser.add_argument('--action', default='predict')
 parser.add_argument('--action', default='train')
 parser.add_argument('--dataset', default="breakfast")
 parser.add_argument('--split', default='2')
 
 args = parser.parse_args()
 
-num_stages = 1 #TODO change it to 2
+num_stages = 4 #TODO change it to 2
 num_layers = 10
 num_f_maps = 64
 features_dim = 2048
 bz = 1
 lr = 0.0005
-num_epochs = 1 #TODO change it to 50
+num_epochs = 100 #TODO change it to 50
 
 # use the full temporal resolution @ 15fps
 sample_rate = 1
@@ -69,20 +70,26 @@ num_classes = len(actions_dict)
 loss = float('inf')
 no_enhancement = 0
 
+batch_gen = BatchGenerator(num_classes, actions_dict, segmentation_path, features_path, sample_rate)
+batch_gen.read_data(vid_list_file)
+trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes, batch_gen.class_weights)
+
 if args.action == "train":
-    batch_gen = BatchGenerator(num_classes, actions_dict, segmentation_path, features_path, sample_rate)
-    batch_gen.read_data(vid_list_file)
-    trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes, batch_gen.class_weights)
+
     while no_enhancement < 3:
         trainer.train(model_dir, batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, device=device)
-        predictions, prediction_probs = trainer.predict(model_dir, results_dir, features_path, vid_list_file,
-                                      num_epochs, actions_dict, device, sample_rate)
+        print(batch_gen.transcripts)
+        prediction_probs = trainer.predict(model_dir, features_path, vid_list_file, num_epochs,
+                                           actions_dict, device, sample_rate)
         new_loss = batch_gen.loss(prediction_probs)
-        if new_loss > loss:
+        print("ISBA loss=", new_loss)
+        if new_loss >= loss:
             no_enhancement += 1
+        else:
+            no_enhancement = 0
         loss = new_loss
         batch_gen.generate_target(prediction_probs)
 
 if args.action == "predict":
-    trainer.predict(model_dir, results_dir, features_path, vid_list_file_tst, num_epochs, actions_dict, device,
+    trainer.predict_test(model_dir, results_dir, features_path, vid_list_file, num_epochs, actions_dict, device,
                     sample_rate)

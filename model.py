@@ -19,7 +19,8 @@ class MultiStageModel(nn.Module):
         out = self.stage1(x)
         outputs = out.unsqueeze(0)
         for s in self.stages:
-            out = s(F.softmax(out, dim=1))
+            #out = s(F.softmax(out, dim=1))
+            out = s(out)
             outputs = torch.cat((outputs, out.unsqueeze(0)), dim=0)
         return outputs
 
@@ -59,8 +60,9 @@ class DilatedResidualLayer(nn.Module):
 class Trainer:
     def __init__(self, num_blocks, num_layers, num_f_maps, dim, num_classes, weights):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
-        self.bce = nn.BCEWithLogitsLoss(weight=weights)
+        self.bce = nn.BCELoss(reduction='none')
         self.num_classes = num_classes
+        self.weights = weights
 
     def train(self, save_dir, batch_gen, num_epochs, batch_size, learning_rate, device):
         self.model.train()
@@ -77,7 +79,10 @@ class Trainer:
 
                 loss = 0
                 for p in predictions:
-                    loss += self.bce(p.transpose(2, 1), batch_target.type_as(p))
+                    bce_not_reduced = self.bce(p.transpose(2, 1), batch_target.type_as(p))
+                    bce_weighted = bce_not_reduced * self.weights
+                    bce = bce_weighted.mean()
+                    loss += bce
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
@@ -88,10 +93,46 @@ class Trainer:
             batch_gen.reset()
             torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
             torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
+            print("epoch = ", epoch, "loss = ", epoch_loss)
 # print("[epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples),
     # float(correct)))
 
-    def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
+    def predict(self, model_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
+        temp_res = []
+        temp_res_categorical = []
+        self.model.eval()
+        with torch.no_grad():
+            self.model.to(device)
+            self.model.load_state_dict(torch.load(model_dir + "/epoch-" + str(epoch) + ".model"))
+            file_ptr = open(vid_list_file, 'r')
+            list_of_vids = file_ptr.read().split('\n')[:-1]
+            file_ptr.close()
+            for vid in list_of_vids:
+                print(vid)
+                features = np.load(features_path + vid.split('.')[0] + '.npy')
+                features = features[:, ::sample_rate]
+                input_x = torch.tensor(features, dtype=torch.float)
+                input_x.unsqueeze_(0)
+                input_x = input_x.to(device)
+                predictions = self.model(input_x)
+                probs = predictions[-1].data.squeeze().numpy().T
+                _, predicted = torch.max(predictions[-1].data, 1)
+                print(predicted)
+                # predicted = predicted.squeeze()
+                # recognition = []
+                # for i in range(len(predicted)):
+                #     t = predicted[i].item()
+                #     for key, value in actions_dict.items():
+                #         if value == t:
+                #             label = key
+                #     recognition = np.concatenate((recognition, [label]*sample_rate))
+                # temp_res.append(recognition)
+                temp_res_categorical.append(probs)
+        print("min: ", np.min(temp_res_categorical[0]), "max: ", np.max(temp_res_categorical[0]) )
+        return temp_res_categorical
+
+
+    def predict_test(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
         temp_res = []
         temp_res_categorical = []
         self.model.eval()
@@ -126,6 +167,5 @@ class Trainer:
                 f_ptr.write("### Frame level recognition: ###\n")
                 f_ptr.write(' '.join(recognition))
                 f_ptr.close()
+        print("min: ", np.min(temp_res_categorical[0]), "max: ", np.max(temp_res_categorical[0]) )
         return temp_res, temp_res_categorical
-
-

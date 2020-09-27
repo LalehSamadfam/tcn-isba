@@ -76,6 +76,7 @@ class BatchGenerator(object):
         classes = (1 / classes) ** 0.5
         classes /= (1 / 48 * np.sum(classes))
         self.class_weights = torch.tensor(classes)
+        print(classes)
 
     def read_data(self, vid_list_file):
         file_ptr = open(vid_list_file, 'r')
@@ -107,12 +108,14 @@ class BatchGenerator(object):
                 if transcript[i] != transcript[i + 1]:
                     if prediction[t][transcript[i]] - prediction[t][transcript[i + 1]] > rho:
                         # transcript = np.insert(transcript, t + 1, )
-                        change_stack.insert([t + 1, transcript[i]])
+                        change_stack.append([i + 1, transcript[i]])
                     elif prediction[t][transcript[i + 1]] - prediction[t][transcript[i]] > rho:
-                        change_stack.insert([t + 1, transcript[i + 1]])
+                        change_stack.append([i + 1, transcript[i + 1]])
             if len(change_stack) > 0:
-                for i in len(change_stack):
-                    np.insert(transcript, change_stack[i][0] + i, change_stack[i][1])
+                print("MUUUHAAAAHAHHAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+                for i in range(len(change_stack)):
+                    transcript = np.insert(transcript, change_stack[i][0] + i, change_stack[i][1])
+            change_stack = []
             self.transcripts[batch[index]] = transcript
 
     def to_target(self, sequence, len):
