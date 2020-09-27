@@ -3,7 +3,6 @@
 import torch
 from model import Trainer
 from batch_gen import BatchGenerator
-import utils
 import os
 import argparse
 import random
@@ -73,16 +72,16 @@ no_enhancement = 0
 if args.action == "train":
     batch_gen = BatchGenerator(num_classes, actions_dict, segmentation_path, features_path, sample_rate)
     batch_gen.read_data(vid_list_file)
-    trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes, batch_gen.weights)
+    trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes, batch_gen.class_weights)
     while no_enhancement < 3:
         trainer.train(model_dir, batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, device=device)
-        predictions = trainer.predict(model_dir, temp_results_dir, features_path, vid_list_file,
+        predictions, prediction_probs = trainer.predict(model_dir, results_dir, features_path, vid_list_file,
                                       num_epochs, actions_dict, device, sample_rate)
-        new_loss = batch_gen.loss(predictions)
+        new_loss = batch_gen.loss(prediction_probs)
         if new_loss > loss:
             no_enhancement += 1
         loss = new_loss
-        batch_gen.generate_target(segmentation_path, temp_results_dir, vid_list_file)
+        batch_gen.generate_target(prediction_probs)
 
 if args.action == "predict":
     trainer.predict(model_dir, results_dir, features_path, vid_list_file_tst, num_epochs, actions_dict, device,

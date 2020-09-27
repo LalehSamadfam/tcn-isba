@@ -38,6 +38,7 @@ class SingleStageModel(nn.Module):
         for layer in self.layers:
             out = layer(out)
         out = self.conv_out(out)
+        out = (F.softmax(out, dim=1))
         return out
 
 
@@ -58,7 +59,6 @@ class DilatedResidualLayer(nn.Module):
 class Trainer:
     def __init__(self, num_blocks, num_layers, num_f_maps, dim, num_classes, weights):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
-        #self.mse = nn.MSELoss(reduction='none')
         self.bce = nn.BCEWithLogitsLoss(weight=weights)
         self.num_classes = num_classes
 
@@ -77,25 +77,23 @@ class Trainer:
 
                 loss = 0
                 for p in predictions:
-                    loss += self.bce(p.transpose(2, 1).contiguous().view(-1, self.num_classes), batch_target.view(-1))
-                    #loss += 0.15*torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1),
-                    #                        F.log_softmax(p.detach()[:, :, :-1], dim=1)), min=0, max=16))
-
+                    loss += self.bce(p.transpose(2, 1), batch_target.type_as(p))
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
 
-                _, predicted = torch.max(predictions[-1].data, 1)
-                correct += ((predicted == batch_target).float()).sum().item()
+#                _, predicted = torch.max(predictions[-1].data, 1)
+#                correct += ((predicted == batch_target).float()).sum().item()
 
             batch_gen.reset()
             torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
             torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
-            print("[epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples),
-                                                               float(correct)))
+# print("[epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples),
+    # float(correct)))
 
     def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
         temp_res = []
+        temp_res_categorical = []
         self.model.eval()
         with torch.no_grad():
             self.model.to(device)
@@ -110,18 +108,24 @@ class Trainer:
                 input_x = torch.tensor(features, dtype=torch.float)
                 input_x.unsqueeze_(0)
                 input_x = input_x.to(device)
-                predictions = self.model(input_x, torch.ones(input_x.size(), device=device))
+                predictions = self.model(input_x)
+                probs = predictions[-1].data.squeeze().numpy().T
                 _, predicted = torch.max(predictions[-1].data, 1)
                 predicted = predicted.squeeze()
                 recognition = []
                 for i in range(len(predicted)):
-                    recognition = np.concatenate((recognition,
-                                [actions_dict.keys()[actions_dict.values().index(predicted[i].item())]]*sample_rate))
+                    t = predicted[i].item()
+                    for key, value in actions_dict.items():
+                        if value == t:
+                            label = key
+                    recognition = np.concatenate((recognition, [label]*sample_rate))
                 temp_res.append(recognition)
+                temp_res_categorical.append(probs)
                 f_name = vid.split('/')[-1].split('.')[0]
                 f_ptr = open(results_dir + "/" + f_name, "w")
                 f_ptr.write("### Frame level recognition: ###\n")
                 f_ptr.write(' '.join(recognition))
                 f_ptr.close()
-        return temp_res
+        return temp_res, temp_res_categorical
+
 
