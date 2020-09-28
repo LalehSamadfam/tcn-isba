@@ -76,16 +76,21 @@ class BatchGenerator(object):
         classes = (1 / classes) ** 0.5
         classes /= (1 / 48 * np.sum(classes))
         self.class_weights = torch.tensor(classes)
-        print(classes)
+
 
     def read_data(self, vid_list_file):
         file_ptr = open(vid_list_file, 'r')
         self.list_of_examples = file_ptr.read().split('\n')[:-1]  # list of files
         file_ptr.close()
+        print("reading data names finished!")
         # random.shuffle(self.list_of_examples) #
         self.set_class_weights()  # class weights
+        print("calss weights are all set!")
         self.make_transcripts()
+        print("transcripts are all created!")
         self.make_occurance()
+        print("occurance arrays are all created!")
+
 
     def loss(self, predictions):
         ocurance_categorical = np.array([np.sum(to_categorical(y, self.num_classes), 0)
@@ -112,7 +117,7 @@ class BatchGenerator(object):
                     elif prediction[t][transcript[i + 1]] - prediction[t][transcript[i]] > rho:
                         change_stack.append([i + 1, transcript[i + 1]])
             if len(change_stack) > 0:
-                print("MUUUHAAAAHAHHAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+                print("----------------------WEEEE HAVE A NEWWW ACTION CLASS----------------------")
                 for i in range(len(change_stack)):
                     transcript = np.insert(transcript, change_stack[i][0] + i, change_stack[i][1])
             change_stack = []
