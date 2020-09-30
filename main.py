@@ -6,9 +6,7 @@ from batch_gen import BatchGenerator
 import os
 import argparse
 import random
-import numpy as np
-
-
+import shutil
 # init
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -26,20 +24,23 @@ parser.add_argument('--split', default='2')
 
 args = parser.parse_args()
 
-num_stages = 4 #TODO change it to 2
+num_stages = 2 #TODO change it to 2
 num_layers = 10
 num_f_maps = 64
 features_dim = 2048
+#features_dim = 65
 bz = 1
-lr = 0.00005
-num_epochs = 200
+lr = 0.0005
+num_epochs = 20
 
 # use the full temporal resolution @ 15fps
 sample_rate = 1
 
 vid_list_file = "./data/" + args.dataset + "/splits/train.split" + args.split + ".bundle"
 vid_list_file_tst = "./data/" + args.dataset + "/splits/test.split" + args.split + ".bundle"
+#features_path = "./data/" + args.dataset + "/lowdimfeatures/"
 features_path = "./data/" + args.dataset + "/features/"
+
 #gt_path = "./data/" + args.dataset + "/groundTruth/"
 segmentation_path = "./data/" + args.dataset + "/segmentation/"
 
@@ -74,12 +75,15 @@ batch_gen = BatchGenerator(num_classes, actions_dict, segmentation_path, feature
 batch_gen.read_data(vid_list_file)
 trainer = Trainer(num_stages, num_layers, num_f_maps, features_dim, num_classes, batch_gen.class_weights)
 
+isba_loop = 0
 if args.action == "train":
-
     while no_enhancement < 3:
-        trainer.train(model_dir, batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, device=device)
-        print(batch_gen.transcripts)
-        prediction_probs = trainer.predict(model_dir, features_path, vid_list_file, num_epochs,
+
+        os.mkdir(model_dir+ "/" + str(isba_loop))
+        trainer.train(model_dir, batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr,
+                      device=device, isba_loop=isba_loop)
+        dir = model_dir+ "/" + str(isba_loop)
+        prediction_probs = trainer.predict(dir, features_path, vid_list_file, num_epochs,
                                            actions_dict, device, sample_rate)
         new_loss = batch_gen.loss(prediction_probs)
         print("ISBA loss=", new_loss)
@@ -87,6 +91,10 @@ if args.action == "train":
             no_enhancement += 1
         else:
             no_enhancement = 0
+            if isba_loop > 1:
+               shutil.rmtree(model_dir + "/" + str(isba_loop - 1))
+
+        isba_loop += 1
         loss = new_loss
         batch_gen.generate_target(prediction_probs)
 

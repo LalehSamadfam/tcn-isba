@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch import optim
 import copy
 import numpy as np
+import time
 
 
 class MultiStageModel(nn.Module):
@@ -60,15 +61,18 @@ class DilatedResidualLayer(nn.Module):
 class Trainer:
     def __init__(self, num_blocks, num_layers, num_f_maps, dim, num_classes, weights):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
-        self.bce = nn.BCELoss(reduction='none')
+        self.bce = nn.BCELoss()
         self.num_classes = num_classes
         self.weights = weights
 
-    def train(self, save_dir, batch_gen, num_epochs, batch_size, learning_rate, device):
+    def train(self, save_dir, batch_gen, num_epochs, batch_size, learning_rate, device, isba_loop):
         self.model.train()
         self.model.to(device)
+        self.weights.to(device)
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
         print("lets start training!")
+
+        start = time.time()
         for epoch in range(num_epochs):
             epoch_loss = 0
             correct = 0
@@ -80,23 +84,21 @@ class Trainer:
 
                 loss = 0
                 for p in predictions:
-                    bce_not_reduced = self.bce(p.transpose(2, 1), batch_target.type_as(p))
-                    bce_weighted = bce_not_reduced * self.weights
-                    bce = bce_weighted.mean()
+                    bce = self.bce(p.squeeze(), batch_target.squeeze().type_as(p))
+                    #bce_weighted = torch.mul(bce.squeeze().transpose(0,1),  self.weights)
+                    #bce = bce_weighted.mean()
                     loss += bce
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
 
-#                _, predicted = torch.max(predictions[-1].data, 1)
-#                correct += ((predicted == batch_target).float()).sum().item()
-
             batch_gen.reset()
-            torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
-            torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
-            print("epoch = ", epoch, "loss = ", epoch_loss)
-# print("[epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples),
-    # float(correct)))
+            torch.save(self.model.state_dict(), save_dir + "/" + str(isba_loop) + "/epoch-" + str(epoch + 1) + ".model")
+            torch.save(optimizer.state_dict(), save_dir + "/" + str(isba_loop) + "/epoch-" + str(epoch + 1) + ".opt")
+            end = time.time()
+            print("epoch = ", epoch, ", loss = ", "{:.5f}".format(epoch_loss), ", time: ", "{:.2f}".format(end - start), "s")
+
+            #print("[epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples),float(correct)))
 
     def predict(self, model_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
         temp_res = []
@@ -109,16 +111,16 @@ class Trainer:
             list_of_vids = file_ptr.read().split('\n')[:-1]
             file_ptr.close()
             for vid in list_of_vids:
-                print(vid)
+                #file_ptr2 = features_path + vid
+                #features = np.loadtxt(file_ptr2).T
                 features = np.load(features_path + vid.split('.')[0] + '.npy')
                 features = features[:, ::sample_rate]
                 input_x = torch.tensor(features, dtype=torch.float)
                 input_x.unsqueeze_(0)
                 input_x = input_x.to(device)
                 predictions = self.model(input_x)
-                probs = predictions[-1].data.squeeze().numpy().T
+                probs = predictions[-1].data.squeeze().cpu().numpy().T
                 _, predicted = torch.max(predictions[-1].data, 1)
-                print(predicted)
                 # predicted = predicted.squeeze()
                 # recognition = []
                 # for i in range(len(predicted)):
@@ -151,7 +153,7 @@ class Trainer:
                 input_x.unsqueeze_(0)
                 input_x = input_x.to(device)
                 predictions = self.model(input_x)
-                probs = predictions[-1].data.squeeze().numpy().T
+                probs = predictions[-1].data.squeeze().cpu().numpy().T
                 _, predicted = torch.max(predictions[-1].data, 1)
                 predicted = predicted.squeeze()
                 recognition = []

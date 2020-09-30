@@ -75,6 +75,7 @@ class BatchGenerator(object):
                 classes[action_class] += 1
         classes = (1 / classes) ** 0.5
         classes /= (1 / 48 * np.sum(classes))
+        print(classes)
         self.class_weights = torch.tensor(classes)
 
 
@@ -84,8 +85,8 @@ class BatchGenerator(object):
         file_ptr.close()
         print("reading data names finished!")
         # random.shuffle(self.list_of_examples) #
-        self.set_class_weights()  # class weights
-        print("calss weights are all set!")
+        #self.set_class_weights()  # class weights
+        #print("calss weights are all set!")
         self.make_transcripts()
         print("transcripts are all created!")
         self.make_occurance()
@@ -103,7 +104,7 @@ class BatchGenerator(object):
         return loss
 
     def generate_target(self, predictions):
-        rho = 0.5
+        rho = 0.02
         change_stack = []
         batch = self.list_of_examples
         for index, prediction in enumerate(predictions):
@@ -112,7 +113,6 @@ class BatchGenerator(object):
                 t = int(prediction.shape[0] / transcript.shape[0]) * (i + 1)
                 if transcript[i] != transcript[i + 1]:
                     if prediction[t][transcript[i]] - prediction[t][transcript[i + 1]] > rho:
-                        # transcript = np.insert(transcript, t + 1, )
                         change_stack.append([i + 1, transcript[i]])
                     elif prediction[t][transcript[i + 1]] - prediction[t][transcript[i]] > rho:
                         change_stack.append([i + 1, transcript[i + 1]])
@@ -121,6 +121,7 @@ class BatchGenerator(object):
                 for i in range(len(change_stack)):
                     transcript = np.insert(transcript, change_stack[i][0] + i, change_stack[i][1])
             change_stack = []
+            print(transcript)
             self.transcripts[batch[index]] = transcript
 
     def to_target(self, sequence, len):
@@ -137,20 +138,23 @@ class BatchGenerator(object):
         batch_target = []
         length_of_sequences = []
         for vid in batch:
+            #file_ptr2 = self.features_path + vid
+            #features = np.loadtxt(file_ptr2).T
             features = np.load(self.features_path + vid.split('.')[0] + '.npy')
             transcript = self.transcripts[vid]
-            vid_len = self.lens[vid]
+            vid_len = min(self.lens[vid], features.shape[1])
             pseudo_gt = self.to_target(transcript, vid_len)
             batch_input.append(features[:, ::self.sample_rate])
-            batch_target.append(pseudo_gt[::self.sample_rate])
-            length_of_sequences.append(int(vid_len / self.sample_rate))
+            new = pseudo_gt[::self.sample_rate]
+            batch_target.append(new)
+            length_of_sequences.append(len(new))
 
         batch_input_tensor = torch.zeros(len(batch_input), np.shape(batch_input[0])[0],
                                          max(length_of_sequences), dtype=torch.float)
-        batch_target_tensor = torch.ones(len(batch_input), max(length_of_sequences), self.num_classes,
-                                         dtype=torch.long) * (-100)
+        batch_target_tensor = torch.ones(len(batch_input), self.num_classes, max(length_of_sequences),
+                                         dtype=torch.float) * (-100)
 
         for i in range(len(batch_input)):
             batch_input_tensor[i, :, :np.shape(batch_input[i])[1]] = torch.from_numpy(batch_input[i])
-            batch_target_tensor[i, :, :np.shape(batch_target[i])[0]] = torch.from_numpy(batch_target[i])
+            batch_target_tensor[i, :, :np.shape(batch_target[i])[0]] = torch.from_numpy(batch_target[i].T)
         return batch_input_tensor, batch_target_tensor
