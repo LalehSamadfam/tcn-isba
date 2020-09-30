@@ -121,15 +121,6 @@ class Trainer:
                 predictions = self.model(input_x)
                 probs = predictions[-1].data.squeeze().cpu().numpy().T
                 _, predicted = torch.max(predictions[-1].data, 1)
-                # predicted = predicted.squeeze()
-                # recognition = []
-                # for i in range(len(predicted)):
-                #     t = predicted[i].item()
-                #     for key, value in actions_dict.items():
-                #         if value == t:
-                #             label = key
-                #     recognition = np.concatenate((recognition, [label]*sample_rate))
-                # temp_res.append(recognition)
                 temp_res_categorical.append(probs)
         print("min: ", np.min(temp_res_categorical[0]), "max: ", np.max(temp_res_categorical[0]) )
         return temp_res_categorical
@@ -146,8 +137,6 @@ class Trainer:
             list_of_vids = file_ptr.read().split('\n')[:-1]
             file_ptr.close()
             for vid in list_of_vids:
-                #print(vid)
-                #features = np.load(features_path + vid.split('.')[0] + '.npy')
                 file_ptr2 = features_path + vid
                 features = np.loadtxt(file_ptr2).T
                 features = features[:, ::sample_rate]

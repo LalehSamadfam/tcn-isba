@@ -136,6 +136,7 @@ class BatchGenerator(object):
         batch_target = []
         length_of_sequences = []
         for vid in batch:
+            print(vid)
             file_ptr2 = self.features_path + vid
             features = np.loadtxt(file_ptr2).T
             #features = np.load(self.features_path + vid.split('.')[0] + '.npy')
