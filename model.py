@@ -77,7 +77,7 @@ class Trainer:
             epoch_loss = 0
             correct = 0
             while batch_gen.has_next():
-                batch_input, batch_target = batch_gen.next_batch(batch_size)
+                batch_input, batch_target, vid = batch_gen.next_batch(batch_size)
                 batch_input, batch_target = batch_input.to(device), batch_target.to(device)
                 optimizer.zero_grad()
                 predictions = self.model(batch_input)
@@ -88,6 +88,8 @@ class Trainer:
                     #bce_weighted = torch.mul(bce.squeeze().transpose(0,1),  self.weights)
                     #bce = bce_weighted.mean()
                     loss += bce
+                    if bce.item() > 10:
+                        print(vid)
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()

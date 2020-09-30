@@ -135,8 +135,9 @@ class BatchGenerator(object):
         batch_input = []
         batch_target = []
         length_of_sequences = []
+        id = ''
         for vid in batch:
-            print(vid)
+            id = vid
             file_ptr2 = self.features_path + vid
             features = np.loadtxt(file_ptr2).T
             #features = np.load(self.features_path + vid.split('.')[0] + '.npy')
@@ -156,4 +157,4 @@ class BatchGenerator(object):
         for i in range(len(batch_input)):
             batch_input_tensor[i, :, :np.shape(batch_input[i])[1]] = torch.from_numpy(batch_input[i])
             batch_target_tensor[i, :, :np.shape(batch_target[i])[0]] = torch.from_numpy(batch_target[i].T)
-        return batch_input_tensor, batch_target_tensor
+        return batch_input_tensor, batch_target_tensor, id
