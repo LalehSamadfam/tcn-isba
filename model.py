@@ -61,7 +61,7 @@ class DilatedResidualLayer(nn.Module):
 class Trainer:
     def __init__(self, num_blocks, num_layers, num_f_maps, dim, num_classes, weights):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
-        self.bce = nn.BCELoss()
+        self.bce = nn.BCELoss(reduction='mean')
         self.num_classes = num_classes
         self.weights = weights
 
@@ -96,7 +96,7 @@ class Trainer:
             torch.save(self.model.state_dict(), save_dir + "/" + str(isba_loop) + "/epoch-" + str(epoch + 1) + ".model")
             torch.save(optimizer.state_dict(), save_dir + "/" + str(isba_loop) + "/epoch-" + str(epoch + 1) + ".opt")
             end = time.time()
-            print("epoch = ", epoch, ", loss = ", "{:.5f}".format(epoch_loss), ", time: ", "{:.2f}".format(end - start), "s")
+            print("epoch=", epoch, ", loss=", "{:.4f}".format(epoch_loss), ", time:", "{:.2f}".format(end - start), "s")
 
             #print("[epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples),float(correct)))
 
@@ -111,9 +111,9 @@ class Trainer:
             list_of_vids = file_ptr.read().split('\n')[:-1]
             file_ptr.close()
             for vid in list_of_vids:
-                #file_ptr2 = features_path + vid
-                #features = np.loadtxt(file_ptr2).T
-                features = np.load(features_path + vid.split('.')[0] + '.npy')
+                file_ptr2 = features_path + vid
+                features = np.loadtxt(file_ptr2).T
+                #features = np.load(features_path + vid.split('.')[0] + '.npy')
                 features = features[:, ::sample_rate]
                 input_x = torch.tensor(features, dtype=torch.float)
                 input_x.unsqueeze_(0)
@@ -146,8 +146,10 @@ class Trainer:
             list_of_vids = file_ptr.read().split('\n')[:-1]
             file_ptr.close()
             for vid in list_of_vids:
-                print(vid)
-                features = np.load(features_path + vid.split('.')[0] + '.npy')
+                #print(vid)
+                #features = np.load(features_path + vid.split('.')[0] + '.npy')
+                file_ptr2 = features_path + vid
+                features = np.loadtxt(file_ptr2).T
                 features = features[:, ::sample_rate]
                 input_x = torch.tensor(features, dtype=torch.float)
                 input_x.unsqueeze_(0)

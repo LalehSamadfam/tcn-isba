@@ -27,19 +27,19 @@ args = parser.parse_args()
 num_stages = 2 #TODO change it to 2
 num_layers = 10
 num_f_maps = 64
-features_dim = 2048
-#features_dim = 65
+#features_dim = 2048
+features_dim = 65
 bz = 1
 lr = 0.0005
-num_epochs = 20
+num_epochs = 100
 
 # use the full temporal resolution @ 15fps
 sample_rate = 1
 
 vid_list_file = "./data/" + args.dataset + "/splits/train.split" + args.split + ".bundle"
 vid_list_file_tst = "./data/" + args.dataset + "/splits/test.split" + args.split + ".bundle"
-#features_path = "./data/" + args.dataset + "/lowdimfeatures/"
-features_path = "./data/" + args.dataset + "/features/"
+features_path = "./data/" + args.dataset + "/lowdimfeatures/"
+#features_path = "./data/" + args.dataset + "/features/"
 
 #gt_path = "./data/" + args.dataset + "/groundTruth/"
 segmentation_path = "./data/" + args.dataset + "/segmentation/"
@@ -86,7 +86,7 @@ if args.action == "train":
         prediction_probs = trainer.predict(dir, features_path, vid_list_file, num_epochs,
                                            actions_dict, device, sample_rate)
         new_loss = batch_gen.loss(prediction_probs)
-        print("ISBA loss=", new_loss)
+        print("loop", isba_loop, " loss=", new_loss)
         if new_loss >= loss:
             no_enhancement += 1
         else:

@@ -117,11 +117,9 @@ class BatchGenerator(object):
                     elif prediction[t][transcript[i + 1]] - prediction[t][transcript[i]] > rho:
                         change_stack.append([i + 1, transcript[i + 1]])
             if len(change_stack) > 0:
-                print("----------------------WEEEE HAVE A NEWWW ACTION CLASS----------------------")
                 for i in range(len(change_stack)):
                     transcript = np.insert(transcript, change_stack[i][0] + i, change_stack[i][1])
             change_stack = []
-            print(transcript)
             self.transcripts[batch[index]] = transcript
 
     def to_target(self, sequence, len):
@@ -138,9 +136,9 @@ class BatchGenerator(object):
         batch_target = []
         length_of_sequences = []
         for vid in batch:
-            #file_ptr2 = self.features_path + vid
-            #features = np.loadtxt(file_ptr2).T
-            features = np.load(self.features_path + vid.split('.')[0] + '.npy')
+            file_ptr2 = self.features_path + vid
+            features = np.loadtxt(file_ptr2).T
+            #features = np.load(self.features_path + vid.split('.')[0] + '.npy')
             transcript = self.transcripts[vid]
             vid_len = min(self.lens[vid], features.shape[1])
             pseudo_gt = self.to_target(transcript, vid_len)
