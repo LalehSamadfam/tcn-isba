@@ -74,8 +74,9 @@ class BatchGenerator(object):
                 action_class = self.actions_dict[label]
                 classes[action_class] += 1
         classes = (1 / classes) ** 0.5
-        classes /= (1 / 48 * np.sum(classes))
-        print(classes)
+        classes /= np.sum(classes)
+        classes *= 48
+        print(np.sum(classes))
         self.class_weights = torch.tensor(classes)
 
 

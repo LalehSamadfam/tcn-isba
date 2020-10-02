@@ -93,11 +93,11 @@ if args.action == "train":
             no_enhancement = 0
             if isba_loop > 1:
                shutil.rmtree(model_dir + "/" + str(isba_loop - 1))
-
         isba_loop += 1
         loss = new_loss
         batch_gen.generate_target(prediction_probs)
 
 if args.action == "predict":
-    trainer.predict_test(model_dir, results_dir, features_path, vid_list_file, num_epochs, actions_dict, device,
+    dir = model_dir + '/29/'
+    trainer.predict_test(dir, results_dir, features_path, vid_list_file, num_epochs, actions_dict, device,
                     sample_rate)
